@@ -1,126 +1,58 @@
 <?php
-session_start();
+// 1. إظهار الأخطاء ( لحل مشكلة الشاشة البيضاء )
+error_reporting(E_ALL);
+ini_set("display_errors", 1);
+
 require_once "db.php";
-include "header.php";
 
-// إعداد قيم افتراضية
-$page = [
-    "title" => "سياسات الموقع",
-    "content" => "<p style='text-align:center; padding:20px;'>لم يتم إضافة المحتوى بعد.</p>",
-];
+echo "<h2>🚀 جاري إعادة بناء جدول المستخدمين...</h2>";
 
-// جلب المحتوى من قاعدة البيانات بأمان
-$page_key = "privacy";
-$stmt = $conn->prepare("SELECT title, content FROM site_pages WHERE page_key = ? LIMIT 1");
-
-if ($stmt) {
-    $stmt->bind_param("s", $page_key);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows > 0) {
-        $page = $result->fetch_assoc();
-    }
-    $stmt->close();
-}
-?>
-
-<style>
-/* خلفية الموقع */
-body {
-    background-image: linear-gradient( rgba( 0, 0, 0, 0.6 ), rgba( 0, 0, 0, 0.6 ) ), url( "media/yy.png" ) !important;
-    background-size: cover !important;
-    background-attachment: fixed !important;
+// 2. حذف الجدول القديم ( للتخلص من البيانات المتعارضة )
+$sql_drop = "DROP TABLE IF EXISTS users";
+if ($conn->query($sql_drop) === true) {
+    echo "✅ تم حذف الجدول القديم لتنظيف البيانات.<br>";
+} else {
+    echo "⚠️ لم يتم حذف الجدول (ربما غير موجود): " . $conn->error . "<br>";
 }
 
-/* حاوية الصفحة */
-.policy-container {
-    max-width: 850px;
-    margin: 60px auto;
-    /* الخلفية الزجاجية */
-    background: rgba( 255, 255, 255, 0.95 );
-    backdrop-filter: blur( 20px );
-    -webkit-backdrop-filter: blur( 20px );
+// 3. إنشاء الجدول من جديد بالتصميم الصحيح ( مع الإيميل )
+$sql_create = "CREATE TABLE users (
+    id INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) DEFAULT 'reader',
+    full_name VARCHAR(100) NULL,
+    slogan VARCHAR(255) NULL,
+    bio TEXT NULL,
+    avatar VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-    padding: 50px;
-    border-radius: 20px;
-    box-shadow: 0 20px 50px rgba( 0, 0, 0, 0.3 );
-    color: #333;
-    line-height: 1.8;
-    border: 1px solid rgba( 255, 255, 255, 0.5 );
+if ($conn->query($sql_create) === true) {
+    echo "✅ تم إنشاء جدول users الجديد بنجاح.<br>";
+} else {
+    die("❌ خطأ فادح في إنشاء الجدول: " . $conn->error);
 }
 
-.policy-header {
-    text-align: center;
-    border-bottom: 2px solid #f39c12;
-    padding-bottom: 20px;
-    margin-bottom: 30px;
+echo "<hr>";
+
+// 4. إنشاء حساب المدير الجديد
+$email = "admin@fusool.com";
+$password = "123456";
+$username = "Admin";
+$hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+$sql_insert = "INSERT INTO users (username, email, password, role, full_name, bio) 
+               VALUES ('$username', '$email', '$hashed_password', 'admin', 'المدير العام', 'حساب الإدارة الرئيسي')";
+
+if ($conn->query($sql_insert) === true) {
+    echo "✅ تم إنشاء حساب المدير بنجاح!<br><br>";
+    echo "---------------------------------<br>";
+    echo "<b>البريد الإلكتروني:</b> $email<br>";
+    echo "<b>كلمة المرور:</b> $password<br>";
+    echo "<br><a href='login.php' style='background:#2c3e50; color:white; padding:10px 20px; text-decoration:none; border-radius:5px;'>👉 اضغط هنا لتسجيل الدخول</a>";
+} else {
+    echo "❌ خطأ في إضافة المدير: " . $conn->error;
 }
-
-.policy-title {
-    font-size: 2.5rem;
-    font-weight: 800;
-    color: #2c3e50;
-    margin: 0;
-    font-family: 'Tajawal', sans-serif;
-}
-
-/* تنسيقات المحتوى القادم من قاعدة البيانات */
-.policy-content {
-    font-size: 1.1rem;
-    color: #444;
-}
-.policy-content h3 {
-    color: #d35400;
-    font-size: 1.4rem;
-    margin-top: 20px;
-    margin-bottom: 10px;
-}
-.policy-content p {
-    margin-bottom: 15px;
-    text-align: justify;
-}
-
-/* تنسيق زر التعديل */
-.edit-page-btn {
-    display: inline-block;
-    background: #2c3e50;
-    color: white;
-    text-decoration: none;
-    font-weight: bold;
-    padding: 12px 30px;
-    border-radius: 30px;
-    transition: 0.3s;
-    border: 2px solid #2c3e50;
-    margin-top: 30px;
-}
-.edit-page-btn:hover {
-    background: transparent;
-    color: #2c3e50;
-}
-</style>
-
-<main class = "profile-wrapper">
-<div class = "policy-container">
-<div class = "policy-header">
-<h1 class = "policy-title"><?php echo htmlspecialchars($page["title"]); ?></h1>
-<p style = "color:#777; margin-top:10px;">آخر تحديث: <?php echo date("Y/m/d"); ?></p>
-</div>
-
-<div class = "policy-content">
-<?php echo $page["content"]; ?>
-</div>
-
-<?php if (isset($_SESSION["role"]) && $_SESSION["role"] === "admin"): ?>
-<div style = "text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
-<a href = "edit-page.php?key=privacy" class = "edit-page-btn">
-✏️ تعديل محتوى السياسات
-</a>
-</div>
-<?php endif; ?>
-
-</div>
-</main>
-
-<?php include "footer.php";
 ?>
